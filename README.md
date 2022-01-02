@@ -1,8 +1,6 @@
 # "Reps" (working title)
 Governance delegation protocol
 
-[Working doc](https://docs.google.com/document/d/1gbqr3kCMvu2SdQl6aOYcSzRZ_-IwoveOtA_pHIJcQGQ/edit#)
-
 ## Purpose
 ### General
 Rarible DAO, and most other existing DAOs, have a need for governance power delegation in order to increase voter participation. However, the more DAOs people are members of, and the more complex governance decisions are, the more ineffective independent delegation systems will be. Community members cannot keep track of all their delegates over many DAOs and many decisions, so participation will continue to be poor or delegates will have little incentive to represent their constituents.

@@ -24,18 +24,22 @@ Create a protocol that:
 - Allows people locking their tokens to delegate to receive a corresponding liquid asset
 
 ## User stories
+DAO member:
 - As a member of many DAOs, I want to view all my currently undelegated voting power
 - As a member of many DAOs, I want to quickly find delegates who can represent me well in all my communities
 - As a member of many DAOs, I want to quickly delegate my voting power to those delegates
 
+Delegator:
 - As a delegator, I want to make my assets useful even while they are locked in delegation
 - As a delegator, I want to un-delegate and retrieve my tokens
 
+Delegate:
 - As a delegate, I want to communicate which communities I am active in
 - As a delegate, I want to present a promise about how I will act on when governing
 - As a delegate, I want to get paid for fulfilling my promise
 - As a delegate, I want to be able to stop being a delegate
 
+Challenger:
 - As a challenger, I want to get paid for finding delegates breaking their promises
 
 ## Specs

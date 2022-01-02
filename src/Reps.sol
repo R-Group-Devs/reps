@@ -69,6 +69,7 @@ contract Reps is ERC721Enumerable, ReentrancyGuard {
         // TODO input redelegations
     ) external payable returns (uint256) {
         require(IRep(rep).operator() != address(0), "Reps: invalid rep");
+        require(tokens.length <= 10, "Reps: cannot delegate more than 10 tokens");
         require(
             tokens.length == amounts.length &&
             amounts.length == tokenIds.length,

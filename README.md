@@ -49,7 +49,7 @@ Challenger:
 - burns `delegation` NFTs -- burn a given delegation NFT in order to retrieve the corresponding tokens. ETH cannot be retrieved.
 - boosts ETH for a Rep -- add more ETH to the payment pool / challenge bounty for a Rep.
 - challenges a Rep -- pay a fee to challenge a Rep, activating a dispute resolution system to determine if a Rep is upholding their `promise`. 
-- "fires" a Rep -- if a challenge succeeds and a Rep is found to have broken their promise, the Rep contract has its tokens delegated to and operator set to the zero address, effectively "firing" the Rep. Delegations to that Rep can still be redeemed. Any remaining Eth in that Rep's pool goes to the successful challenger.
+- "fires" a Rep -- if a challenge succeeds and a Rep is found to have broken their promise, the Rep contract has its tokens delegated to and operator set to the zero address, effectively "firing" the Rep. Delegations to that Rep can still be redeemed. Any remaining Eth in that Rep's pool goes to the successful challenger. The Rep contract is dead at this point, but the operator is free to create a new one and build up support again (if they can).
 
 ### TODOs
 [] Decide on dispute resolution system (Kleros?)

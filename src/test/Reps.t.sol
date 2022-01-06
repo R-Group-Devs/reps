@@ -48,7 +48,6 @@ contract RepsTest is DSTestPlus {
     }
 
     function testNewRep() public {
-        console.log("hello");
         address rep = reps.newRep(
             address(0xBEEF),
             [
@@ -66,6 +65,6 @@ contract RepsTest is DSTestPlus {
             "I promise to be good",
             address(arb)
         );
-        console.log(Rep(rep).operator());
+        assertEq(Rep(rep).operator(), address(0xBEEF));
     }
 }

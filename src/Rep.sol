@@ -24,7 +24,7 @@ interface IRep {
     function transferNonfungible(address, address, uint256[] calldata) external;
 }
 
-contract Rep {
+contract Rep is IRep {
     //===== State =====//
    
     address private immutable _owner;
@@ -40,7 +40,7 @@ contract Rep {
     constructor(address operator_, address[10] memory tokens_, string memory promise__, address owner) {
         // Owner included in constructor args so that it goes into create2 address gen, and require
         // statement included to ensure only a given Reps contract can deploy 
-        require(msg.sender == owner, "Rep: owner deploy only");
+        require(msg.sender == owner, "owner deploy only");
         _owner = owner;
         operator = operator_;
         promise_ = promise__;
@@ -57,7 +57,7 @@ contract Rep {
         require(
             msg.sender == operator || 
             msg.sender == _owner,
-            "Rep: only operator or owner"
+            "only operator or owner"
         );
         operator = operator_;
         _delegate(operator);
@@ -78,7 +78,9 @@ contract Rep {
 
     function _delegate(address operator_) private {
         for(uint8 i = 0; i < tokens.length; i++) {
-            try IDelegatable(tokens[i]).delegate(operator_) {} catch {}
+            if (tokens[i] != address(0)) {
+                try IDelegatable(tokens[i]).delegate(operator_) {} catch {}
+            }
         }
     }
 
@@ -86,7 +88,7 @@ contract Rep {
     //===== Modifiers =====//
 
     modifier onlyOwner() {
-        require(msg.sender == _owner, "Rep: msg.sender must be owner");
+        require(msg.sender == _owner, "only owner");
         _;
     }
 }

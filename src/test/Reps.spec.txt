@@ -1,0 +1,54 @@
+/**
+ * constructor
+ * - sets name, symbol, and weth address
+ *
+ * newRep
+ * - rejects arbitrators that don't support IArbitrator
+ * - deploys a new Rep contract with correct fields
+ * - emits correct event
+ *
+ * newDelegation
+ * - rejects for invalid rep
+ * - rejects for >10 tokens
+ * - rejects for array length mismatch
+ * - transfers all tokens to rep
+ * - mints token
+ * - sets tokens, amounts, ids, rep state properly
+ * - boosts eth for rep
+ *
+ * burnDelegations
+ * - rejects if caller doesn't own one of the ids (or if one of the ids doesn't exist)
+ * - transfers correct tokens to NFT holders and burns NFTs
+ * 
+ * boostEthFor
+ * - updates claimable, checkpoint time, stream pool, stream rate
+ *
+ * claimableFor
+ * - shows expected value
+ * - returns 0 for non-existant reps
+ *
+ * claimFor
+ * - transfers claimableFor to rep operator
+ * - never transfers anything if rep doesn't exist
+ *
+ * dispute
+ * - rejects for already disputed rep
+ * - rejects if fee not supplied
+ * - creates new dispute in arbitrator, sets dispute id
+ * 
+ * rule
+ * - rejects for non-existant dispute
+ * - rejects if called by non-arbitrator
+ * - if ruling is 1, 
+     sets rep operator to 0 address,
+     sends all funds to dispute creator, 
+     sets rep stream rate, claimable, pool to 0,
+     and sets new checkpoint.
+ * - sets rep to not disputed, emits Ruling
+ *
+ * Mock contracts we need:
+ * - mock ERC20 w/ delegation -- solmate has this
+ * - mock ERC20 w/out delegation
+ * - mock WETH -- solmate has this
+ * - mock arbitrator -- Kleros has this https://github.com/kleros/kleros-v2/blob/master/contracts/src/arbitration/CentralizedArbitrator.sol
+ */

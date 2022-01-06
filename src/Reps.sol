@@ -1,16 +1,26 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.10;
 
-import {ERC721} from "openzeppelin-contracts.git/token/ERC721/ERC721.sol";
-import {ERC721Enumerable} from "openzeppelin-contracts.git/token/ERC721/extensions/ERC721Enumerable.sol";
-import {ReentrancyGuard} from "openzeppelin-contracts.git/security/ReentrancyGuard.sol";
+import {ERC721} from "solmate/tokens/ERC721.sol";
+import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
+import {IERC165} from "openzeppelin-contracts.git/utils/introspection/IERC165.sol";
 import {IRep, Rep, IERC20, IERC721} from "./Rep.sol";
+import {IArbitrable} from "./IArbitrable.sol";
+import {IArbitrator} from "./IArbitrator.sol";
 
 interface IWETH {
     function deposit() external payable;
 }
 
-contract Reps is ERC721Enumerable, ReentrancyGuard {
+contract Reps is ERC721, ReentrancyGuard, IArbitrable {
+    //===== Structs =====//
+
+    struct Dispute {
+      uint256 id;
+      address creator;
+    }
+
+
     //===== State =====//
 
     uint256 public delegationCount;
@@ -19,6 +29,9 @@ contract Reps is ERC721Enumerable, ReentrancyGuard {
     mapping(uint256 => uint256[][]) public delegationTokenIds;
     mapping(uint256 => address) public delegationReps;
 
+    mapping(uint256 => address) public disputeReps;
+    mapping(address => Dispute) public repDisputes;
+    mapping(address => address) public repArbitrators;
     mapping(address => uint256) private _repCheckpointTimes;
     mapping(address => uint256) public repClaimable;
     mapping(address => uint256) public repStreamPools;
@@ -54,11 +67,21 @@ contract Reps is ERC721Enumerable, ReentrancyGuard {
 
     //===== External Functions =====//
 
-    // @param promise The political promise of the rep. Could be a hash + URI in the future but should emphasize brevity.
-    function newRep(address operator, address[10] calldata tokens, string calldata promise_) external {
-        require(tokens.length <= 10, "Reps: rep cannot have more than 10 tokens");
+    // @param promise_ The political promise of the rep. Could be a hash + URI in the future but should emphasize brevity.
+    function newRep(
+        address operator, 
+        address[10] calldata tokens, 
+        string calldata promise_,
+        address arbitrator
+    ) external returns (address) {
+        require(
+            IERC165(arbitrator).supportsInterface(type(IArbitrator).interfaceId),
+            "Reps: invalid arbitrator"
+        );
         Rep rep = new Rep(operator, tokens, promise_, msg.sender);
+        repArbitrators[address(rep)] = arbitrator;
         emit NewRep(address(rep), operator, tokens, promise_);
+        return address(rep);
     }
 
     function newDelegation(
@@ -94,7 +117,7 @@ contract Reps is ERC721Enumerable, ReentrancyGuard {
 
     function burnDelegations(uint256[] calldata delegationIds) external {
         for(uint256 i = 0; i < delegationIds.length; i++) {
-            require(msg.sender == ownerOf(delegationIds[i]), "Reps: only delegator can burn delegation");
+            require(msg.sender == ownerOf[delegationIds[i]], "Reps: only delegator can burn delegation");
             _burnDelegation(delegationIds[i]);
         }
     }
@@ -109,8 +132,37 @@ contract Reps is ERC721Enumerable, ReentrancyGuard {
         _transferETHOrWETH(claimee, value);
     }
 
-    // TODO arbitration
+    function dispute(address rep) external payable {
+        uint256 id = repDisputes[rep].id;
+        require(id != 0, "Reps: already disputed");
+        address arbitrator = repArbitrators[rep];
+        id = IArbitrator(arbitrator).createDispute(2, "");
+        repDisputes[rep] = Dispute(id, msg.sender);
+        disputeReps[id] = rep;
+    }
 
+    // @param ruling 0 -- refused to arbitrate, 1 -- fired, 2 -- not fired
+    function rule(uint256 disputeId, uint256 ruling) external {
+        address rep = disputeReps[disputeId];
+        require(rep != address(0), "Reps: non-existant dispute");
+        address arbitrator = repArbitrators[rep];
+        require(arbitrator == msg.sender, "Reps: arbitrator only");
+        if (ruling == 1) {
+            // you're fired
+            IRep(rep).setOperator(address(0));
+            // send remaining rep funds to dispute creator
+            uint256 amount = repClaimable[rep] + repStreamPools[rep];
+            address creator = repDisputes[rep].creator;
+            repStreamRates[rep] = 0;
+            repClaimable[rep] = 0;
+            repStreamPools[rep] = 0;
+            _repCheckpointTimes[rep] = block.timestamp;
+            _transferETHOrWETH(creator, amount);
+        }
+        // rep is no longer disputed
+        delete repDisputes[rep];
+        emit Ruling(IArbitrator(arbitrator), disputeId, ruling);
+    }
 
     //===== Public Functions =====//
 
@@ -128,28 +180,13 @@ contract Reps is ERC721Enumerable, ReentrancyGuard {
         return repStreamRates[rep] * timePassed / 365 days;
     }
 
+    // TODO something useful with tokenURI
+    function tokenURI(uint256 delegationId) public view override returns (string memory) {
+        return "";
+    }
+
 
     //===== Private Functions =====//
-
-    function _fire(address rep) private {
-        IRep(rep).setOperator(address(0));
-    }
-
-    function _transferETHOrWETH(address to, uint256 value)
-        private
-        nonReentrant
-        returns (bool)
-    {
-        // try to transfer ETH with some gas
-        (bool success, ) = to.call{value: value, gas: 30000}("");
-        // if it fails, transfer wrapped ETH
-        if (!success) {
-            IWETH(weth).deposit{value: value}();
-            IERC20(weth).transferFrom(address(this), to, value);
-        }
-        emit TransferETH(to, value, success);
-        return success;
-    }
 
     function _newCheckpoint(address rep) private {
         uint256 newClaimable = claimableFor(rep);
@@ -177,24 +214,40 @@ contract Reps is ERC721Enumerable, ReentrancyGuard {
     }
 
     function _burnDelegation(uint256 id) private {
-        require(ownerOf(id) != address(0), "Reps: Rep doesn't exist");
+        require(ownerOf[id] != address(0), "Reps: delegation doesn't exist");
         for(uint256 i = 0; i < delegationTokens[id].length; i++) {
             if (delegationAmounts[id][i] > 0) {
                 // treat as ERC20
                 IRep(delegationReps[id]).transferFungible(
-                    ownerOf(id), 
+                    ownerOf[id], 
                     delegationTokens[id][i], 
                     delegationAmounts[id][i]
                 );
             } else {
                 // treat as ERC721
                 IRep(delegationReps[id]).transferNonfungible(
-                    ownerOf(id), 
+                    ownerOf[id], 
                     delegationTokens[id][i], 
                     delegationTokenIds[id][i]
                 );
             }
         }
         _burn(id);
+    }
+
+    function _transferETHOrWETH(address to, uint256 value)
+        private
+        nonReentrant
+        returns (bool)
+    {
+        // try to transfer ETH with some gas
+        (bool success, ) = to.call{value: value, gas: 30000}("");
+        // if it fails, transfer wrapped ETH
+        if (!success) {
+            IWETH(weth).deposit{value: value}();
+            IERC20(weth).transferFrom(address(this), to, value);
+        }
+        emit TransferETH(to, value, success);
+        return success;
     }
 }

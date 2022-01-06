@@ -27,7 +27,7 @@ interface IRep {
 contract Rep is IRep {
     //===== State =====//
    
-    address private immutable _owner;
+    address private immutable _owner = msg.sender;
     // For tokens that are not delegatable, the balance of a given token in this contract may also be
     // considered delegated to the operator.
     address public operator;
@@ -37,31 +37,14 @@ contract Rep is IRep {
 
     //===== Constructor =====//
 
-    constructor(address operator_, address[10] memory tokens_, string memory promise__, address owner) {
-        // Owner included in constructor args so that it goes into create2 address gen, and require
-        // statement included to ensure only a given Reps contract can deploy 
-        require(msg.sender == owner, "owner deploy only");
-        _owner = owner;
-        operator = operator_;
+    constructor(address operator_, address[10] memory tokens_, string memory promise__) {
+        setOperator(operator_);
         promise_ = promise__;
         tokens = tokens_;
-        _delegate(operator);
     }
 
 
     //===== External Functions =====//
-
-    // Setting this to address(0) permanently kills the Rep contract's delegation! 
-    // Note: cannot prevent this contract from holding tokens.
-    function setOperator(address operator_) external {
-        require(
-            msg.sender == operator || 
-            msg.sender == _owner,
-            "only operator or owner"
-        );
-        operator = operator_;
-        _delegate(operator);
-    }
 
     function transferFungible(address to, address token, uint256 amount) external onlyOwner {
         IERC20(token).transferFrom(address(this), to, amount);
@@ -74,6 +57,21 @@ contract Rep is IRep {
     }
 
 
+    //===== Public Functions =====//
+
+    // Setting this to address(0) permanently kills the Rep contract's delegation! 
+    // Note: cannot prevent this contract from holding tokens.
+    function setOperator(address operator_) public {
+        require(
+            msg.sender == operator || 
+            msg.sender == _owner,
+            "only operator or owner"
+        );
+        operator = operator_;
+        _delegate(operator);
+    }
+
+    
     //===== Private Functions =====//
 
     function _delegate(address operator_) private {

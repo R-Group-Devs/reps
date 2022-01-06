@@ -3,7 +3,6 @@ pragma solidity 0.8.10;
 
 import {ERC721} from "solmate/tokens/ERC721.sol";
 import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
-import {IERC165} from "openzeppelin-contracts.git/utils/introspection/IERC165.sol";
 import {IRep, Rep, IERC20, IERC721} from "./Rep.sol";
 import {IArbitrable} from "./IArbitrable.sol";
 import {IArbitrator} from "./IArbitrator.sol";
@@ -74,11 +73,8 @@ contract Reps is ERC721, ReentrancyGuard, IArbitrable {
         string calldata promise_,
         address arbitrator
     ) external returns (address) {
-        require(
-            IERC165(arbitrator).supportsInterface(type(IArbitrator).interfaceId),
-            "Reps: invalid arbitrator"
-        );
-        Rep rep = new Rep(operator, tokens, promise_, msg.sender);
+        // TODO do a minimal check on arbitrator w/out using ERC165
+        Rep rep = new Rep(operator, tokens, promise_);
         repArbitrators[address(rep)] = arbitrator;
         emit NewRep(address(rep), operator, tokens, promise_);
         return address(rep);

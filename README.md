@@ -10,7 +10,8 @@ Governance delegation protocol
 ## Proposal
 Create a protocol that:
 - Supports multi-token delegates, allowing people to browse delegates for all their communities in the same place and delegate more than one token at once, to reduce the number of actions they need to take
-- As trustlessly as possible, **keeps delegates accountable to their constituents by giving them more to lose if they break their promises**
+- Lets delegates get paid to do governance work
+- As trustlessly as possible, **keeps delegates accountable to their constituents by giving them more to lose if they break their promises**, without putting the burden on constituents to put lots of time into oversight
 - Allows people locking their tokens to delegate to receive a corresponding liquid asset
 
 ## User stories

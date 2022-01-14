@@ -3,22 +3,14 @@ Governance delegation protocol
 
 ## Purpose
 ### General
-Rarible DAO, and most other existing DAOs, have a need for governance power delegation in order to increase voter participation. However, the more DAOs people are members of, and the more complex governance decisions are, the more ineffective independent delegation systems will be. Community members cannot keep track of all their delegates over many DAOs and many decisions, so participation will continue to be poor or delegates will have little incentive to represent their constituents.
+**Community members cannot keep track of all their delegates over many DAOs and many decisions**, so participation will continue to be poor or delegates will have little incentive to represent their constituents.
 
-In DAOs with delegation systems, delegates have little skin in the game of representation. Let’s be honest: people are not checking up on what their delegates are doing. And even if they do check up on them, the only thing delegates stand to lose is a little voting power.
-
-### Rarible DAO
-We need a delegation system to reduce RARI voter apathy. That delegation system should ideally be scalable and give delegates skin in the game of representing their constituents.
-
-More concretely, the working on this problem could provide:
-- Speculative value -- this could potentially get a lot of attention in the DAO space and solve an interesting new problem
-- Financial value – we can potentially get grant funding from DAOs like Compound, Uniswap, Radicle and others using delegation systems, including possible token swaps
-- Utility value -- provides us with an effective RARI delegation system
+**People are not checking up on what their delegates are doing. And even if they do check up on them, the only thing delegates stand to lose is one person's voting power.**
 
 ## Proposal
 Create a protocol that:
-- Supports multi-token delegates, allowing cross-community delegates and voting systems that use multiple tokens
-- As trustlessly as possible, keeps delegates accountable to their constituents by giving them more to lose if they break their promises
+- Supports multi-token delegates, allowing people to browse delegates for all their communities in the same place and delegate more than one token at once, to reduce the number of actions they need to take
+- As trustlessly as possible, **keeps delegates accountable to their constituents by giving them more to lose if they break their promises**
 - Allows people locking their tokens to delegate to receive a corresponding liquid asset
 
 ## User stories
@@ -50,9 +42,9 @@ Challenger:
 - "fires" a Rep -- if a challenge succeeds and a Rep is found to have broken their promise, the Rep contract has its tokens delegated to and operator set to the zero address, effectively "firing" the Rep. Delegations to that Rep can still be redeemed. Any remaining Eth in that Rep's pool goes to the successful challenger. The Rep contract is dead at this point, but the operator is free to create a new one and build up support again (if they can).
 
 ### TODOs
-[] Decide on dispute resolution system (Kleros?)
-[] Testing
-[] Dapp -- frontend, subgraph, etc.
+- [X] Decide on dispute resolution system (Kleros' interfaces)
+- [ ] Testing
+- [ ] Dapp -- frontend, subgraph, etc.
 
 # Development
 - install [Foundry](https://github.com/gakonst/foundry)

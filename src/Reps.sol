@@ -23,21 +23,20 @@ contract Reps is ERC721, ReentrancyGuard, IArbitrable {
     //===== State =====//
 
     uint256 public delegationCount;
-    mapping(uint256 => address[]) public delegationTokens;
-    mapping(uint256 => uint256[]) public delegationAmounts;
-    mapping(uint256 => uint256[][]) public delegationTokenIds;
-    mapping(uint256 => address) public delegationReps;
+    mapping(uint256 => address[]) private _delegationTokens;
+    mapping(uint256 => uint256[]) private _delegationAmounts;
+    mapping(uint256 => uint256[][]) private _delegationTokenIds;
+    mapping(uint256 => address) private _delegationReps;
 
-    mapping(uint256 => address) public disputeReps;
-    mapping(address => Dispute) public repDisputes;
-    mapping(address => address) public repArbitrators;
     mapping(address => uint256) private _repCheckpointTimes;
-    mapping(address => uint256) public repClaimable;
-    mapping(address => uint256) public repStreamPools;
-    mapping(address => uint256) public repStreamRates;
+    mapping(address => uint256) private _repClaimable;
+    mapping(address => uint256) private _repStreamPools;
+    mapping(address => uint256) private _repStreamRates;
+    mapping(address => address) private _repArbitrators;
+    mapping(address => Dispute) private _repDisputes;
+    mapping(uint256 => address) private _disputeReps;
 
     address public immutable weth;
-
 
     //===== Events =====//
 
@@ -75,7 +74,7 @@ contract Reps is ERC721, ReentrancyGuard, IArbitrable {
     ) external returns (address) {
         // TODO do a minimal check on arbitrator w/out using ERC165
         Rep rep = new Rep(operator, tokens, promise_);
-        repArbitrators[address(rep)] = arbitrator;
+        _repArbitrators[address(rep)] = arbitrator;
         emit NewRep(address(rep), operator, tokens, promise_);
         return address(rep);
     }
@@ -123,41 +122,75 @@ contract Reps is ERC721, ReentrancyGuard, IArbitrable {
     function claimFor(address rep) external {
         _newCheckpoint(rep);
         address claimee = IRep(rep).operator();
-        uint256 value = repClaimable[rep];
-        repClaimable[rep] = 0;
+        uint256 value = _repClaimable[rep];
+        _repClaimable[rep] = 0;
         _transferETHOrWETH(claimee, value);
     }
 
     function dispute(address rep) external payable {
-        uint256 id = repDisputes[rep].id;
+        uint256 id = _repDisputes[rep].id;
         require(id != 0, "Reps: already disputed");
-        address arbitrator = repArbitrators[rep];
+        address arbitrator = _repArbitrators[rep];
         id = IArbitrator(arbitrator).createDispute(2, "");
-        repDisputes[rep] = Dispute(id, msg.sender);
-        disputeReps[id] = rep;
+        _repDisputes[rep] = Dispute(id, msg.sender);
+        _disputeReps[id] = rep;
     }
 
     // @param ruling 0 -- refused to arbitrate, 1 -- fired, 2 -- not fired
     function rule(uint256 disputeId, uint256 ruling) external {
-        address rep = disputeReps[disputeId];
+        address rep = _disputeReps[disputeId];
         require(rep != address(0), "Reps: non-existant dispute");
-        address arbitrator = repArbitrators[rep];
+        address arbitrator = _repArbitrators[rep];
         require(arbitrator == msg.sender, "Reps: arbitrator only");
         if (ruling == 1) {
             // you're fired
             IRep(rep).setOperator(address(0));
             // send remaining rep funds to dispute creator
-            uint256 amount = repClaimable[rep] + repStreamPools[rep];
-            address creator = repDisputes[rep].creator;
-            repStreamRates[rep] = 0;
-            repClaimable[rep] = 0;
-            repStreamPools[rep] = 0;
+            uint256 amount = _repClaimable[rep] + _repStreamPools[rep];
+            address creator = _repDisputes[rep].creator;
+            _repStreamRates[rep] = 0;
+            _repClaimable[rep] = 0;
+            _repStreamPools[rep] = 0;
             _repCheckpointTimes[rep] = block.timestamp;
             _transferETHOrWETH(creator, amount);
         }
         // rep is no longer disputed
-        delete repDisputes[rep];
+        delete _repDisputes[rep];
         emit Ruling(IArbitrator(arbitrator), disputeId, ruling);
+    }
+
+    function delegationData(uint256 id) external view returns (
+        address[] memory, 
+        uint256[] memory, 
+        uint256[][] memory, 
+        address
+    ) {
+        return (
+            _delegationTokens[id],
+            _delegationAmounts[id],
+            _delegationTokenIds[id],
+            _delegationReps[id]
+        );
+    }
+
+    function repData(address rep) external view returns (
+        uint256,
+        uint256,
+        uint256,
+        uint256,
+        address,
+        uint256,
+        address
+    ) {
+        return (
+          _repCheckpointTimes[rep],
+          _repClaimable[rep],
+          _repStreamPools[rep],
+          _repStreamRates[rep],
+          _repArbitrators[rep],
+          _repDisputes[rep].id,
+          _repDisputes[rep].creator
+        );
     }
 
     //===== Public Functions =====//
@@ -166,14 +199,14 @@ contract Reps is ERC721, ReentrancyGuard, IArbitrable {
     // This may be a bad design choice, but it may not be, and it is simple.
     function boostEthFor(address rep) public payable {
         _newCheckpoint(rep);
-        repStreamRates[rep] = repStreamPools[rep] + msg.value;
+        _repStreamRates[rep] = _repStreamPools[rep] + msg.value;
     }
 
     function claimableFor(address rep) public view returns (uint256) {
         uint256 timePassed = block.timestamp - _repCheckpointTimes[rep];
         // stream rate is such that 100% would be claimable after 365 solidity days
         // if nothing is added to the pool. Adding to the pool increases the rate
-        return repStreamRates[rep] * timePassed / 365 days;
+        return _repStreamRates[rep] * timePassed / 365 days;
     }
 
     // TODO something useful with tokenURI
@@ -187,9 +220,9 @@ contract Reps is ERC721, ReentrancyGuard, IArbitrable {
     function _newCheckpoint(address rep) private {
         uint256 newClaimable = claimableFor(rep);
         _repCheckpointTimes[rep] = block.timestamp;
-        repClaimable[rep] = repClaimable[rep] + newClaimable;
-        repStreamPools[rep] = repStreamPools[rep] + msg.value - newClaimable;
-        emit Checkpoint(rep, repClaimable[rep], repStreamPools[rep]);
+        _repClaimable[rep] = _repClaimable[rep] + newClaimable;
+        _repStreamPools[rep] = _repStreamPools[rep] + msg.value - newClaimable;
+        emit Checkpoint(rep, _repClaimable[rep], _repStreamPools[rep]);
     }
 
     function _mint(
@@ -200,10 +233,10 @@ contract Reps is ERC721, ReentrancyGuard, IArbitrable {
         address rep
     ) private returns (uint256) {
         uint256 id = delegationCount;
-        delegationTokens[id] = tokens;
-        delegationAmounts[id] = amounts;
-        delegationTokenIds[id] = tokenIds;
-        delegationReps[id] = rep;
+        _delegationTokens[id] = tokens;
+        _delegationAmounts[id] = amounts;
+        _delegationTokenIds[id] = tokenIds;
+        _delegationReps[id] = rep;
         _mint(to, id);
         delegationCount = delegationCount + 1;
         return id;
@@ -211,20 +244,20 @@ contract Reps is ERC721, ReentrancyGuard, IArbitrable {
 
     function _burnDelegation(uint256 id) private {
         require(ownerOf[id] != address(0), "Reps: delegation doesn't exist");
-        for(uint256 i = 0; i < delegationTokens[id].length; i++) {
-            if (delegationAmounts[id][i] > 0) {
+        for(uint256 i = 0; i < _delegationTokens[id].length; i++) {
+            if (_delegationAmounts[id][i] > 0) {
                 // treat as ERC20
-                IRep(delegationReps[id]).transferFungible(
+                IRep(_delegationReps[id]).transferFungible(
                     ownerOf[id], 
-                    delegationTokens[id][i], 
-                    delegationAmounts[id][i]
+                    _delegationTokens[id][i], 
+                    _delegationAmounts[id][i]
                 );
             } else {
                 // treat as ERC721
-                IRep(delegationReps[id]).transferNonfungible(
+                IRep(_delegationReps[id]).transferNonfungible(
                     ownerOf[id], 
-                    delegationTokens[id][i], 
-                    delegationTokenIds[id][i]
+                    _delegationTokens[id][i], 
+                    _delegationTokenIds[id][i]
                 );
             }
         }

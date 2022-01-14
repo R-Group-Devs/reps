@@ -2,10 +2,12 @@
 Governance delegation protocol
 
 ## Purpose
-### General
+### General problems
 **Community members cannot keep track of all their delegates over many DAOs and many decisions**, so participation will continue to be poor or delegates will have little incentive to represent their constituents.
 
 **People are not checking up on what their delegates are doing. And even if they do check up on them, the only thing delegates stand to lose is one person's voting power.**
+
+**Delegates are not being paid to push governance forward, and are more like hobbyists**. Hobbyist representatives might represent us well, but they probably aren't as active as we'd like in pushing DAOs towards their goals. Paid delegates whose pay depends on them doing a good job might do better.
 
 ## Proposal
 Create a protocol that:

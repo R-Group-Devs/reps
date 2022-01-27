@@ -23,8 +23,9 @@
  * - returns 0 for non-existant reps
  *
  * claimFor
- * - transfers claimableFor to rep operator
- * - never transfers anything if rep doesn't exist
+ * - transfers claimableFor ETH to rep owner if they can receive ETH
+ * - transfers claimableFor WETH to rep owner if they can't receive ETH
+ * - rejects if rep doesn't exist
  *
  * dispute
  * - rejects for already disputed rep

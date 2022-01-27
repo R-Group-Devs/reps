@@ -40,7 +40,9 @@ contract Reps is ERC721, ReentrancyGuard, IArbitrable {
     address public immutable weth;
 
     //===== Events =====//
+
     event TransferETH(address to, uint256 value, bool success);
+
     event Checkpoint(uint256 rep, uint256 claimable, uint256 streaming);
 
     // Using these events it is possible to process the events to build up reverse lookups.
@@ -186,7 +188,7 @@ contract Reps is ERC721, ReentrancyGuard, IArbitrable {
         emit Ruling(IArbitrator(arbitrator), disputeId, ruling);
     }
 
-    function promiseHashOf(uint256 rep)
+    function promiseHash(uint256 rep)
         external
         view
         repExists(rep)
@@ -251,7 +253,7 @@ contract Reps is ERC721, ReentrancyGuard, IArbitrable {
      */
     function boostEthFor(uint256 rep) public payable {
         _newCheckpoint(rep);
-        _streamRates[rep] = _streamPools[rep] + msg.value;
+        _streamRates[rep] = _streamPools[rep];
     }
 
     /**

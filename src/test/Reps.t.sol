@@ -104,10 +104,15 @@ contract RepsTest is DSTestPlus {
 
     //===== setRep =====//
 
-    function testSetRep() public returns (uint256 rep, bytes32 delegationId) {
+    function testSetRep(uint64 payment)
+        public
+        returns (uint256 rep, bytes32 delegationId)
+    {
+        // set up rep
         rep = testNewRep(alice);
-        uint256 payment = 1 ether;
         delegationId = keccak256("gov id");
+
+        // delegate to rep
         vm.expectEmit(true, true, true, false);
         emit SetRep(address(this), delegationId, rep);
         reps.setRep{value: payment}(delegationId, rep);
@@ -116,41 +121,44 @@ contract RepsTest is DSTestPlus {
         checkPaymentData(rep, 0, 0, payment, payment);
     }
 
-    function testSetRep_fromRep() public {
-        (uint256 rep, bytes32 delegationId) = testSetRep();
+    function testSetRep_fromRep(uint64 payment1, uint64 payment2) public {
+        // set up rep with delegation
+        (uint256 rep, bytes32 delegationId) = testSetRep(payment1);
         uint256 rep2 = testNewRep(bob);
-        uint256 payment = 1 ether;
         delegationId = keccak256("gov id");
+
+        // set to new rep from old rep
         vm.expectEmit(true, true, true, false);
         emit SetRep(address(this), delegationId, rep2);
-        reps.setRep{value: payment}(delegationId, rep2);
+        reps.setRep{value: payment2}(delegationId, rep2);
         assertEq(reps.delegation(address(this), delegationId), rep2, "rep2");
 
-        checkPaymentData(rep2, 0, 0, payment, payment);
+        checkPaymentData(rep2, 0, 0, payment2, payment2);
     }
 
-    function testFailSetRep_NoRep() public {
-        uint256 payment = 1 ether;
+    function testFailSetRep_NoRep(uint64 payment) public {
         bytes32 delegationId = keccak256("gov id");
         reps.setRep{value: payment}(delegationId, 1);
     }
 
-    function testFailSetRep_RepOwnerIsSender() public {
+    function testFailSetRep_RepOwnerIsSender(uint64 payment) public {
         uint256 rep = testNewRep(address(this));
-        uint256 payment = 1 ether;
         bytes32 delegationId = keccak256("gov id");
         reps.setRep{value: payment}(delegationId, rep);
     }
 
-    function testFailSetRep_AlreadySet() public {
-        (uint256 rep, bytes32 delegationId) = testSetRep();
-        reps.setRep{value: 1 ether}(delegationId, rep);
+    function testFailSetRep_AlreadySet(uint64 payment) public {
+        (uint256 rep, bytes32 delegationId) = testSetRep(payment);
+        reps.setRep{value: payment}(delegationId, rep);
     }
 
     //===== clearRep =====//
 
     function testClearRep() public {
-        (uint256 rep, bytes32 delegationId) = testSetRep();
+        // set up rep
+        (uint256 rep, bytes32 delegationId) = testSetRep(1 ether);
+
+        // clear rep
         vm.expectEmit(true, true, true, false);
         emit ClearRep(address(this), delegationId, rep);
         reps.clearRep(delegationId);
@@ -158,6 +166,124 @@ contract RepsTest is DSTestPlus {
             reps.delegation(address(this), delegationId),
             0,
             "cleared rep"
+        );
+    }
+
+    function testFailClearRep_NoRep() public {
+        bytes32 delegationId = keccak256("gov id");
+        reps.clearRep(delegationId);
+    }
+
+    //===== boostEthFor =====//
+
+    function testBoostEthFor(uint64 payment, uint64 time)
+        public
+        returns (uint256 rep)
+    {
+        // set up rep
+        rep = testNewRep(alice);
+        (
+            uint256 checkpoint,
+            uint256 claimable,
+            uint256 pool,
+            uint256 rate
+        ) = reps.repPaymentData(rep);
+
+        // fast forward
+        uint256 newTime = checkpoint + time;
+        uint256 newClaimable = reps.claimableAt(rep, newTime);
+        vm.warp(newTime);
+
+        // boost
+        uint256 newPool = pool + payment;
+        vm.expectEmit(false, false, false, true);
+        emit Checkpoint(rep, newClaimable, newPool);
+        reps.boostEthFor{value: payment}(rep);
+        checkPaymentData(rep, newTime, newClaimable, newPool, rate + payment);
+    }
+
+    //===== claimableAt =====//
+
+    function testClaimableAt(uint256 time) public {
+        uint256 rep = testNewRep(alice);
+        (uint256 checkpoint, , uint256 pool, uint256 rate) = reps
+            .repPaymentData(rep);
+        uint256 newTime = checkpoint + time;
+        uint256 claimable = reps.claimableAt(rep, newTime);
+        assertEq(claimable, (rate * time) / 365 days, "claimable");
+    }
+
+    function testClaimableAt_NonexistantRep(uint256 time) public {
+        uint256 newTime = block.timestamp + time;
+        uint256 claimable = reps.claimableAt(1, newTime);
+        assertEq(claimable, 0, "claimable");
+    }
+
+    //===== claimFor =====//
+
+    function testClaimFor(
+        uint64 payment,
+        uint64 time1,
+        uint64 time2
+    ) public {
+        // set up rep with payment
+        uint256 rep = testBoostEthFor(payment, time1);
+        uint256 repsBalanceBefore = address(reps).balance;
+        address owner = reps.ownerOf(rep);
+        uint256 balanceBefore = owner.balance;
+
+        // fast forward
+        vm.warp(block.timestamp + time2);
+        uint256 claimable = reps.claimableAt(rep, block.timestamp);
+
+        // claim
+        vm.expectEmit(false, false, false, true);
+        emit TransferETH(owner, claimable, true);
+        reps.claimFor(rep);
+        assertEq(
+            repsBalanceBefore - claimable,
+            address(reps).balance,
+            "reps balance"
+        );
+        assertEq(balanceBefore + claimable, owner.balance, "owner balance");
+    }
+
+    function testClaimFor_WETH(
+        uint64 payment,
+        uint64 time1,
+        uint64 time2
+    ) public {
+        // set up rep with payment
+        uint256 rep = testBoostEthFor(payment, time1);
+        uint256 repsBalanceBefore = address(reps).balance;
+        uint256 vmWethBefore = weth.balanceOf(address(vm));
+        uint256 vmBalanceBefore = address(vm).balance;
+
+        // fast forward
+        vm.warp(block.timestamp + time2);
+        uint256 claimable = reps.claimableAt(rep, block.timestamp);
+
+        // transfer Rep NFT to new owner that can't receive ETH
+        vm.prank(alice);
+        vm.expectEmit(true, true, true, false);
+        emit Transfer(alice, address(vm), rep);
+        reps.transferFrom(alice, address(vm), rep);
+
+        // claim for new owner, who should receive WETH instead of ETH
+        vm.expectEmit(false, false, false, true);
+        emit TransferETH(address(vm), claimable, false);
+        reps.claimFor(rep);
+
+        assertEq(
+            repsBalanceBefore - claimable,
+            address(reps).balance,
+            "reps balance"
+        );
+        assertEq(vmBalanceBefore, address(vm).balance, "new owner ETH balance");
+        assertEq(
+            vmWethBefore + claimable,
+            weth.balanceOf(address(vm)),
+            "new owner WETH balance"
         );
     }
 }

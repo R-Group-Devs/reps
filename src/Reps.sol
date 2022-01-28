@@ -75,18 +75,18 @@ contract Reps is ERC721, ReentrancyGuard, IArbitrable {
 
       @param owner The initial owner of the Rep NFT
       @param promiseURI Universal resource identifier for the Rep's promise text
-      @param promiseHash A keccak256 hash of the content stored in/at the promise URI
+      @param promiseHash_ A keccak256 hash of the content stored in/at the promise URI
       @param arbitrator Arbitrator that will handle challenges for this rep
      */
     function newRep(
         address owner,
         string memory promiseURI,
-        bytes32 promiseHash,
+        bytes32 promiseHash_,
         address arbitrator
     ) external returns (uint256) {
         repCount += 1;
         _promiseURIs[repCount] = promiseURI;
-        _promiseHashes[repCount] = promiseHash;
+        _promiseHashes[repCount] = promiseHash_;
         _arbitrators[repCount] = arbitrator;
         _mint(owner, repCount);
         return repCount;
@@ -257,20 +257,32 @@ contract Reps is ERC721, ReentrancyGuard, IArbitrable {
     }
 
     /**
-      @notice Check current claimable ETH for a Rep NFT owner
+      @notice Predict claimable ETH for a Rep NFT owner at a given time
 
       @dev Stream rate is such that 100% would be claimable after 365 solidity days,
       if nothing is added to the pool. Adding to the pool increases the rate.
      */
-    function claimableFor(uint256 rep) public view returns (uint256) {
-        uint256 timePassed = block.timestamp - _checkpointTimes[rep];
-        return (_streamRates[rep] * timePassed) / 365 days;
+    function claimableAt(uint256 rep, uint256 timestamp)
+        public
+        view
+        returns (uint256)
+    {
+        if (timestamp < _checkpointTimes[rep]) return 0;
+        uint256 timePassed = timestamp - _checkpointTimes[rep];
+        uint256 claimable = (_streamRates[rep] * timePassed) / 365 days;
+        if (claimable > _streamPools[rep]) {
+            return _streamPools[rep];
+        }
+        return claimable;
     }
 
     //===== Private Functions =====//
 
     function _newCheckpoint(uint256 rep) private {
-        uint256 newClaimable = claimableFor(rep);
+        uint256 timePassed = block.timestamp - _checkpointTimes[rep];
+        uint256 newClaimable = (_streamRates[rep] * timePassed) / 365 days;
+        if (newClaimable > _streamPools[rep] + msg.value)
+            newClaimable = _streamPools[rep] + msg.value;
         _checkpointTimes[rep] = block.timestamp;
         _claimable[rep] = _claimable[rep] + newClaimable;
         _streamPools[rep] = _streamPools[rep] + msg.value - newClaimable;

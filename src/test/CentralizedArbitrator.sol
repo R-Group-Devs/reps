@@ -2,6 +2,7 @@
 pragma solidity ^0.8;
 
 import "../IArbitrator.sol";
+import "./console.sol";
 
 /** @title Centralized Arbitrator
  *  @dev This is a centralized arbitrator deciding alone on the result of disputes. It illustrates how IArbitrator interface can be implemented.

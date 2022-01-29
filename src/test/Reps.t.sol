@@ -5,9 +5,10 @@ import {DSTestPlus} from "solmate/test/utils/DSTestPlus.sol";
 import {ERC20User} from "solmate/test/utils/users/ERC20User.sol";
 import {WETH} from "solmate/tokens/WETH.sol";
 import {CentralizedArbitrator} from "./CentralizedArbitrator.sol";
+import {IArbitrable} from "../IArbitrable.sol";
 import {Reps} from "../Reps.sol";
-import {Rep, IRep} from "../Rep.sol";
 import {Hevm} from "./Hevm.sol";
+import "./console.sol";
 
 contract RepsTest is DSTestPlus {
     event Transfer(
@@ -20,17 +21,21 @@ contract RepsTest is DSTestPlus {
 
     event Checkpoint(uint256 rep, uint256 claimable, uint256 streaming);
 
-    // Using these events it is possible to process the events to build up reverse lookups.
-    // The indeces allow it to be very partial about how to build this lookup (e.g. only for a specific rep).
     event SetRep(
         address indexed delegator,
         bytes32 indexed id,
         uint256 indexed rep
     );
+
     event ClearRep(
         address indexed delegator,
         bytes32 indexed id,
         uint256 indexed rep
+    );
+
+    event DisputeCreation(
+        uint256 indexed _disputeID,
+        IArbitrable indexed _arbitrable
     );
 
     Hevm vm = Hevm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
@@ -213,7 +218,7 @@ contract RepsTest is DSTestPlus {
         assertEq(claimable, (rate * time) / 365 days, "claimable");
     }
 
-    function testClaimableAt_NonexistantRep(uint256 time) public {
+    function testClaimableAt_NonexistentRep(uint256 time) public {
         uint256 newTime = block.timestamp + time;
         uint256 claimable = reps.claimableAt(1, newTime);
         assertEq(claimable, 0, "claimable");
@@ -286,4 +291,40 @@ contract RepsTest is DSTestPlus {
             "new owner WETH balance"
         );
     }
+
+    function testFailClaimFor_NonexistentRep() public {
+        reps.claimFor(1);
+    }
+
+    //===== dispute =====//
+
+    function testDispute() public returns (uint256 dispute) {
+        uint256 rep = testNewRep(alice);
+        uint256 fee = arb.arbitrationCost("");
+        msg.sender.call{value: fee}("");
+        vm.expectEmit(true, true, false, false);
+        emit DisputeCreation(0, reps);
+        dispute = reps.dispute{value: fee}(rep);
+        checkDisputeData(rep, 0, address(this));
+    }
+
+    function testFailDispute_AlreadyDisputed() public {
+        uint256 rep = testNewRep(alice);
+        uint256 fee = arb.arbitrationCost("");
+        msg.sender.call{value: 1 ether}("");
+        vm.expectEmit(true, true, false, false);
+        emit DisputeCreation(0, reps);
+        reps.dispute{value: fee}(rep);
+        checkDisputeData(rep, 0, address(this));
+        reps.dispute{value: fee}(rep);
+    }
+
+    function testFailDispute_InvalidValue() public {
+        uint256 rep = testNewRep(alice);
+        uint256 fee = arb.arbitrationCost("");
+        msg.sender.call{value: fee}("");
+        uint256 dispute = reps.dispute{value: fee - 1}(rep);
+    }
+
+    //===== rule =====//
 }

@@ -137,7 +137,7 @@ contract Reps is ERC721, ReentrancyGuard, IArbitrable {
       @dev Claiming for a rep with owner address(0) will send to address(0),
       but there's no way to get that eth back anyway, so no harm done.
      */
-    function claimFor(uint256 rep) external {
+    function claimFor(uint256 rep) external repExists(rep) {
         _newCheckpoint(rep);
         address claimee = ownerOf[rep];
         uint256 value = _claimable[rep];
@@ -149,11 +149,10 @@ contract Reps is ERC721, ReentrancyGuard, IArbitrable {
       @notice Accuse the owner of a Rep NFT of breaking their promise by creating a dispute in 
       that rep's arbitrator contract.
      */
-    function dispute(uint256 rep) external payable {
-        uint256 id = _repDisputes[rep].id;
-        require(id != 0, "Already disputed");
+    function dispute(uint256 rep) external payable returns (uint256 id) {
+        require(_repDisputes[rep].creator == address(0), "Already disputed");
         address arbitrator = _arbitrators[rep];
-        id = IArbitrator(arbitrator).createDispute(2, "");
+        id = IArbitrator(arbitrator).createDispute{value: msg.value}(2, "");
         _repDisputes[rep] = Dispute(id, msg.sender);
         _disputeReps[id] = rep;
     }

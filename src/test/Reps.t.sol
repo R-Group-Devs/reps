@@ -361,10 +361,17 @@ contract RepsTest is DSTestPlus {
         checkDisputeData(rep, 0, address(0));
     }
 
-    function testRule_Ruling1(uint64 payment) public {
+    function testRule_Ruling1(
+        uint64 payment1,
+        uint64 payment2,
+        uint64 time
+    ) public {
         // set up and pay Rep
-        (uint256 rep, bytes32 delegationId) = testSetRep(payment);
+        (uint256 rep, bytes32 delegationId) = testSetRep(payment1);
         uint256 fee = arb.arbitrationCost("");
+        // warp and pay again so claimable[rep] has an interesting value
+        vm.warp(block.timestamp + time);
+        reps.boostEthFor{value: payment2}(rep);
 
         // create dispute
         bob.call{value: 1 ether}("");
@@ -383,7 +390,7 @@ contract RepsTest is DSTestPlus {
         reps.rule(dispute, ruling);
 
         // ruling 1 consequences: pay bob the rep's pool, burn the NFT
-        assertEq(bobBalance + payment, bob.balance, "bob balance");
+        assertEq(bobBalance + payment1 + payment2, bob.balance, "bob balance");
         assertEq(reps.ownerOf(rep), address(0), "rep owner");
     }
 

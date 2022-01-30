@@ -40,6 +40,6 @@
      sends all funds to dispute creator, 
      sets rep stream rate, claimable, pool to 0,
      and sets new checkpoint.
- * - sets rep to not disputed, emits Ruling
+ * - for all rulings, sets rep to not disputed, emits Ruling
  *
  */

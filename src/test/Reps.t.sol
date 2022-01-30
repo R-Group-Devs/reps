@@ -6,6 +6,7 @@ import {ERC20User} from "solmate/test/utils/users/ERC20User.sol";
 import {WETH} from "solmate/tokens/WETH.sol";
 import {CentralizedArbitrator} from "./CentralizedArbitrator.sol";
 import {IArbitrable} from "../IArbitrable.sol";
+import {IArbitrator} from "../IArbitrator.sol";
 import {Reps} from "../Reps.sol";
 import {Hevm} from "./Hevm.sol";
 import "./console.sol";
@@ -36,6 +37,12 @@ contract RepsTest is DSTestPlus {
     event DisputeCreation(
         uint256 indexed _disputeID,
         IArbitrable indexed _arbitrable
+    );
+
+    event Ruling(
+        IArbitrator indexed _arbitrator,
+        uint256 indexed _disputeID,
+        uint256 _ruling
     );
 
     Hevm vm = Hevm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
@@ -301,7 +308,6 @@ contract RepsTest is DSTestPlus {
     function testDispute() public returns (uint256 dispute) {
         uint256 rep = testNewRep(alice);
         uint256 fee = arb.arbitrationCost("");
-        msg.sender.call{value: fee}("");
         vm.expectEmit(true, true, false, false);
         emit DisputeCreation(0, reps);
         dispute = reps.dispute{value: fee}(rep);
@@ -311,7 +317,6 @@ contract RepsTest is DSTestPlus {
     function testFailDispute_AlreadyDisputed() public {
         uint256 rep = testNewRep(alice);
         uint256 fee = arb.arbitrationCost("");
-        msg.sender.call{value: 1 ether}("");
         vm.expectEmit(true, true, false, false);
         emit DisputeCreation(0, reps);
         reps.dispute{value: fee}(rep);
@@ -322,9 +327,128 @@ contract RepsTest is DSTestPlus {
     function testFailDispute_InvalidValue() public {
         uint256 rep = testNewRep(alice);
         uint256 fee = arb.arbitrationCost("");
-        msg.sender.call{value: fee}("");
         uint256 dispute = reps.dispute{value: fee - 1}(rep);
     }
 
     //===== rule =====//
+
+    function testRule_Ruling0(uint64 payment) public {
+        // set up and pay Rep
+        (uint256 rep, bytes32 delegationId) = testSetRep(payment);
+        address owner = reps.ownerOf(rep);
+        uint256 fee = arb.arbitrationCost("");
+
+        // create dispute
+        bob.call{value: 1 ether}("");
+        vm.expectEmit(true, true, false, false);
+        emit DisputeCreation(0, reps);
+        vm.prank(bob);
+        uint256 dispute = reps.dispute{value: fee}(rep);
+        checkDisputeData(rep, dispute, bob);
+
+        // rule dispute
+        uint256 bobBalance = bob.balance;
+        uint256 ruling = 0;
+        vm.expectEmit(true, true, false, true);
+        emit Ruling(arb, dispute, ruling);
+        vm.prank(address(arb));
+        reps.rule(dispute, ruling);
+
+        // ruling 0 consequences: reset dispute, no other change
+        assertEq(bobBalance, bob.balance, "bob balance");
+        assertEq(reps.ownerOf(rep), owner, "rep owner");
+        checkPaymentData(rep, block.timestamp, 0, payment, payment);
+        checkDisputeData(rep, 0, address(0));
+    }
+
+    function testRule_Ruling1(uint64 payment) public {
+        // set up and pay Rep
+        (uint256 rep, bytes32 delegationId) = testSetRep(payment);
+        uint256 fee = arb.arbitrationCost("");
+
+        // create dispute
+        bob.call{value: 1 ether}("");
+        vm.expectEmit(true, true, false, false);
+        emit DisputeCreation(0, reps);
+        vm.prank(bob);
+        uint256 dispute = reps.dispute{value: fee}(rep);
+        checkDisputeData(rep, dispute, bob);
+
+        // rule dispute
+        uint256 bobBalance = bob.balance;
+        uint256 ruling = 1;
+        vm.expectEmit(true, true, false, true);
+        emit Ruling(arb, dispute, ruling);
+        vm.prank(address(arb));
+        reps.rule(dispute, ruling);
+
+        // ruling 1 consequences: pay bob the rep's pool, burn the NFT
+        assertEq(bobBalance + payment, bob.balance, "bob balance");
+        assertEq(reps.ownerOf(rep), address(0), "rep owner");
+    }
+
+    function testRule_Ruling2(uint64 payment) public {
+        // set up and pay Rep
+        (uint256 rep, bytes32 delegationId) = testSetRep(payment);
+        address owner = reps.ownerOf(rep);
+        uint256 fee = arb.arbitrationCost("");
+
+        // create dispute
+        bob.call{value: 1 ether}("");
+        vm.expectEmit(true, true, false, false);
+        emit DisputeCreation(0, reps);
+        vm.prank(bob);
+        uint256 dispute = reps.dispute{value: fee}(rep);
+        checkDisputeData(rep, dispute, bob);
+
+        // rule dispute
+        uint256 bobBalance = bob.balance;
+        uint256 ruling = 0;
+        vm.expectEmit(true, true, false, true);
+        emit Ruling(arb, dispute, ruling);
+        vm.prank(address(arb));
+        reps.rule(dispute, ruling);
+
+        // ruling 2 consequences: reset dispute, no other change
+        assertEq(bobBalance, bob.balance, "bob balance");
+        assertEq(reps.ownerOf(rep), owner, "rep owner");
+        checkPaymentData(rep, block.timestamp, 0, payment, payment);
+        checkDisputeData(rep, 0, address(0));
+    }
+
+    function testFailRule_NonexistentDispute(uint64 payment) public {
+        // set up and pay Rep
+        (uint256 rep, bytes32 delegationId) = testSetRep(payment);
+        address owner = reps.ownerOf(rep);
+        uint256 fee = arb.arbitrationCost("");
+
+        // don't create dispute
+
+        // try to rule nonexistent dispute
+        uint256 bobBalance = bob.balance;
+        uint256 ruling = 0;
+        vm.prank(address(arb));
+        reps.rule(1, ruling);
+    }
+
+    function testFailRule_WrongCaller(uint64 payment) public {
+        // set up and pay Rep
+        (uint256 rep, bytes32 delegationId) = testSetRep(payment);
+        address owner = reps.ownerOf(rep);
+        uint256 fee = arb.arbitrationCost("");
+
+        // create dispute
+        bob.call{value: 1 ether}("");
+        vm.expectEmit(true, true, false, false);
+        emit DisputeCreation(0, reps);
+        vm.prank(bob);
+        uint256 dispute = reps.dispute{value: fee}(rep);
+        checkDisputeData(rep, dispute, bob);
+
+        // rule dispute
+        uint256 bobBalance = bob.balance;
+        uint256 ruling = 0;
+        /* no prank(address(arb)) */
+        reps.rule(dispute, ruling);
+    }
 }

@@ -163,6 +163,8 @@ contract Reps is ERC721, ReentrancyGuard, IArbitrable {
 
       @dev Callable only by a Rep NFT's arbitrator in accordance with the Arbitrator/Arbitrable interfaces.
 
+      @dev No need to reset state around stream pools, disputes, and so on if ruling is 1: burning the NFT is enough.
+
       @param ruling 0 -- refused to arbitrate, 1 -- fired, 2 -- not fired
      */
     function rule(uint256 disputeId, uint256 ruling) external {
@@ -176,14 +178,11 @@ contract Reps is ERC721, ReentrancyGuard, IArbitrable {
             // send remaining rep funds to dispute creator
             uint256 amount = _claimable[rep] + _streamPools[rep];
             address creator = _repDisputes[rep].creator;
-            _streamRates[rep] = 0;
-            _claimable[rep] = 0;
-            _streamPools[rep] = 0;
-            _checkpointTimes[rep] = block.timestamp;
             _transferETHOrWETH(creator, amount);
+        } else {
+            // rep is no longer disputed
+            delete _repDisputes[rep];
         }
-        // rep is no longer disputed
-        delete _repDisputes[rep];
         emit Ruling(IArbitrator(arbitrator), disputeId, ruling);
     }
 

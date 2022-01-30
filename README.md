@@ -39,7 +39,7 @@ Challenger:
 ### TODOs
 - [X] Decide on dispute resolution system (Kleros' interfaces)
 - [ ] Talk to Snapshot about integration
-- [ ] Testing
+- [X] Testing
 - [ ] Dapp -- frontend, subgraph, etc.
 
 # Development

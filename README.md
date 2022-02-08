@@ -36,6 +36,14 @@ Challenger:
 - challenges a Rep -- pay a fee to challenge a Rep, activating a dispute resolution system to determine if a Rep is upholding their `promise`. 
 - "fires" a Rep -- if a challenge succeeds and a Rep is found to have broken their promise, the Rep NFT is burned, and any remaining Eth in that Rep's pool goes to the successful challenger. People delegated to that Rep will need to switch their delegation to reactivate it.
 
+### How voting power might get calced
+
+This protocol is intended to be used with Snapshot (snapshot.org), though it could probably be used by other systems, too. So voting power would be calculated similarly to how current Snapshot delegation works.
+
+- A delegation is just a delegator id (the msg.sender), a delegatee id (in this case, the NFT id instead of an address), and an arbitrary id (bytes32). 
+- This should be used to calculate voting power the same way as the Gnosis contract that is currently used by Snapshot, I assume something like [this](https://github.com/snapshot-labs/snapshot-strategies/blob/master/src/strategies/delegation/index.ts)
+- The only difference being you are delegating to the current owner of that Rep NFT instead of to an address directly.
+
 ### TODOs
 - [X] Decide on dispute resolution system (Kleros' interfaces)
 - [ ] Talk to Snapshot about integration
